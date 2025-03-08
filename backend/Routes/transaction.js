@@ -7,45 +7,45 @@ const moment = require('moment')
 const mongoose = require('mongoose')
 
 const addNewTransactionBody = zod.object({
-    title : zod.string().max(15),
-    date : zod.string().date(),
-    amount : zod.number().positive(),
-    category : zod.string().max(10),
-    description : zod.string().min(1),
-    transactionType : zod.string(0) 
-})
-router.post("/addTransaction" , authMiddleware , async  (req , res , next) => {
-  
-    const {success , data , error} = addNewTransactionBody.safeParse(req.body)
-    const userId = req.userId;
+  title: zod.string().max(15),
+  date: zod.string().date(),
+  amount: zod.number().positive(),
+  category: zod.string().max(10),
+  description: zod.string().min(1),
+  transactionType: zod.string() 
+});
 
-    if(!success) {
-        return res.json({
-            msg : "Invalid inputs , Please enter valid information" , 
-            errors : error.errors
-        })
-    }
-    
-    const user = await User.findById(userId)
-    if(!user) {
-        return res.status(404).json({
-            msg : "User not found"
-        })
-    }
-    
-    const newTransaction = await Transaction.create({
-        ...data , 
-        user : userId
-    })
-    user.transactions.push(newTransaction)
-    await user.save()
+router.post("/addTransaction", authMiddleware, async (req, res, next) => {
+  const { success, data, error } = addNewTransactionBody.safeParse(req.body);
+  const userId = req.userId;
 
-    return res.status(200).json({
-        success: true,
-        message: "Transaction added successfully",
-        transaction: newTransaction,
+  if (!success) {
+      return res.json({
+          msg: "Invalid inputs, Please enter valid information",
+          errors: error.errors
       });
-})
+  }
+  
+  const user = await User.findById(userId);
+  if (!user) {
+      return res.status(404).json({
+          msg: "User not found"
+      });
+  }
+  
+  const newTransaction = await Transaction.create({
+      ...data,
+      user: userId
+  });
+  user.transactions.push(newTransaction);
+  await user.save();
+
+  return res.status(200).json({
+      success: true,
+      message: "Transaction added successfully",
+      transaction: newTransaction,
+  });
+});
 
 router.post("/getTransactions"  ,authMiddleware ,  async (req, res) => {
   try {
@@ -89,45 +89,45 @@ router.post("/getTransactions"  ,authMiddleware ,  async (req, res) => {
     });
   }
 });
-
-router.delete("/deleteTransaction/:transactionId" , authMiddleware , async (req , res ) => {
-   
-    const userId  = req.userId;
+router.delete("/deleteTransaction/:transactionId", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
     const user = await User.findById(userId);
-    if(!user){
-        return res.json({
-            msg : "User does not exist"
-        })
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User does not exist" });
     }
 
-    const {transactionId} = req.params;
-    const transaction = await Transaction.findById(new mongoose.Types.ObjectId(transactionId))
-    
+    const { transactionId } = req.params;
+
+
+    if (!mongoose.Types.ObjectId.isValid(transactionId)) {
+      return res.status(400).json({ success: false, message: "Invalid Transaction ID" });
+    }
+
+    const transaction = await Transaction.findById(transactionId);
+
     if (!transaction) {
-        return res.status(404).json({
-          success: false,
-          message: "Transaction not found",
-        });
-      }
-
-    if(transaction.user.toString() != userId){
-        return res.status(403).json({
-            msg : "Unauthorised !!!"
-        })
+      return res.status(404).json({ success: false, message: "Transaction not found" });
     }
 
-    await Transaction.findByIdAndDelete(transactionId)
-    await User.findByIdAndUpdate(user , {
-        $pull: {transactions : transactionId}
-    })
-  
 
-    return res.status(200).json({
-        success: true,
-        message: "Transaction deleted successfully",
-      });
+    if (transaction.user.toString() !== userId) {
+      return res.status(403).json({ success: false, message: "Unauthorized action" });
+    }
+
+
+    await Transaction.findByIdAndDelete(transactionId);
+
     
-})
+    await User.findByIdAndUpdate(userId, { $pull: { transactions: transactionId } });
+
+    return res.status(200).json({ success: true, message: "Transaction deleted successfully" });
+  } catch (error) {
+    console.error("Delete Transaction Error:", error);
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+});
 
 const updateBody = zod.object({
   title: zod.string().optional(),
